@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels: 
+    release: kube-prometheus-stack
+    role: alert-rules
+  name: es-cluster-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: es告警
+    rules:
+    - alert: "主机状态"
+      expr: up{job="es-nodes"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "实例 {{`{{`}}$labels.instance{{`}}`}}主机宕机"
+        description: "实例 {{`{{`}}$labels.instance{{`}}`}}主机宕机"
+    - alert: "es_exporter服务未运行"
+      expr: up{job="es"} == 0
+      for: 3m
+      labels:
+        severity: critical
+      annotations:
+        summary: "实例 {{`{{`}}$labels.instance{{`}}`}} es_exporter服务未运行"
+        description: "实例 {{`{{`}}$labels.instance{{`}}`}} es_exporter服务未运行"
+    - alert: "ES集群状态异常"
+      expr: elasticsearch_cluster_health_status{color="red",job="es"} == 1
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{`{{`}}$labels.instance{{`}}`}} ES集群节状态为 RED"
+        description: "{{`{{`}}$labels.instance{{`}}`}} ES集群节状态为RED"
+    - alert: "ES集群节点减少"
+      expr: elasticsearch_cluster_health_number_of_nodes{job="es"} < 1
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{`{{`}}$labels.instance{{`}}`}} ES集群节点减少为{{`{{`}} $value {{`}}`}}"
+        description: "{{`{{`}}$labels.instance{{`}}`}} ES集群节点减少为{{`{{`}} $value {{`}}`}}"
+

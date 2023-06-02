@@ -1,0 +1,52 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels: 
+    release: kube-prometheus-stack
+    role: jvm-rules
+  name: jvm-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: "Jvm类告警"
+    rules:
+    - alert: "JavaServierDown"
+      expr: up{endpoint="jmx",namespace="prod"} == 0
+      for: 3m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod {{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}} $labels.pod {{`}}`}}服务异常"
+        description: "Pod {{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}} $labels.pod {{`}}`}}服务异常"
+    - alert: "FgcCountTooMuch"
+      expr: increase(jvm_gc_collection_seconds_count{endpoint="jmx",namespace="prod"}[5m]) > 2
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}} $labels.pod {{`}}`}}发生连续FullGC"
+        description: "Pod {{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}} $labels.pod {{`}}`}}发生连续FullGC"
+    - alert: "GcTimeTooMuch"
+      expr: increase(jvm_gc_collection_seconds_sum{endpoint="jmx",namespace="prod"}[5m]) > 30
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}}$labels.pod{{`}}`}} 5m内GC时间占比超过30%,当前值({{`{{`}} $value | humanize {{`}}`}}%)."
+        description: "Pod {{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}}$labels.pod{{`}}`}} 5m内GC时间占比超过30%,当前值({{`{{`}} $value | humanize {{`}}`}}%)."
+    - alert: "HeighMemUsage"
+      expr: (jvm_memory_bytes_used{area="heap",endpoint="jmx",namespace="prod"}  / jvm_memory_bytes_max) * 100 > 85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} 堆内存使用大于85%."
+        description: "{{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} 堆内存使用大于85%."
+    - alert: "JAVA线程死锁告警"
+      expr: increase(jvm_threads_deadlocked{endpoint="jmx",namespace="prod"} [3m]) >= 1
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}} $labels.pod {{`}}`}} JAVA线程存在死锁"
+        description: "{{`{{`}}$labels.namespace{{`}}`}}/{{`{{`}} $labels.pod {{`}}`}}JAVA线程存在死锁"

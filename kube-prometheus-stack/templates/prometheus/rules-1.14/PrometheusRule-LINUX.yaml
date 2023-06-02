@@ -1,0 +1,52 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels: 
+    release: kube-prometheus-stack
+    role: alert-rules
+  name: linux-cluster-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: Linux系统类告警
+    rules:
+    - record: instance:node_cpus:count
+      expr: count without (cpu, mode) (node_cpu_seconds_total{mode="idle"})
+    - record: instance_cpu:node_cpu_seconds_not_idle:rate1m
+      expr: sum without (mode) (1 - rate(node_cpu_seconds_total{mode="idle"}[1m]))
+    - record: instance:node_cpu_utilization:ratio
+      expr: avg without (cpu) (instance_cpu:node_cpu_seconds_not_idle:rate1m)
+
+    - alert: "cpu使用率大于95%"
+      expr: instance:node_cpu_utilization:ratio * 100 > 95
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{`{{`}} $labels.instance {{`}}`}} cpu使用率为 {{`{{`}} $value | humanize {{`}}`}}"
+        description: "{{`{{`}} $labels.instance {{`}}`}} cpu使用率为 {{`{{`}} $value | humanize {{`}}`}}"
+    - alert: cpu负载大于Cores
+      expr: node_load5 > instance:node_cpus:count
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{`{{`}} $labels.instance {{`}}`}} cpu负载大于Cores, 当前值为 {{`{{`}} $value | humanize {{`}}`}}"
+        description: "{{`{{`}} $labels.instance {{`}}`}} cpu负载大于Cores, 当前值为 {{`{{`}} $value | humanize {{`}}`}}"
+    - alert: "内存告警"
+      expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{`{{`}} $labels.instance {{`}}`}}内存使用超85%,当前{{`{{`}} $value | humanize {{`}}`}}"
+        description: "{{`{{`}} $labels.instance {{`}}`}}内存使用超85%,当前{{`{{`}} $value | humanize {{`}}`}}"
+    - alert: "磁盘告警"
+      expr: (100 - (node_filesystem_avail_bytes{fstype=~"ext4|xfs",mountpoint!~".*docker.*" } / node_filesystem_size_bytes{fstype=~"ext4|xfs",mountpoint!~".*docker.*" } *100)) > 80
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{`{{`}} $labels.instance {{`}}`}}硬盘空间使用超80%,当前{{`{{`}} $value | humanize {{`}}`}}"
+        description: "{{`{{`}} $labels.instance {{`}}`}}硬盘空间使用超80%,当前{{`{{`}} $value | humanize {{`}}`}}"
+

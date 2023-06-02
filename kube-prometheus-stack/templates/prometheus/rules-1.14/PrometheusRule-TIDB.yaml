@@ -1,0 +1,150 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels: 
+    release: kube-prometheus-stack
+    role: alert-rules
+  name: tidb-cluster-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: tidb告警
+    rules:
+    - alert: "主机状态"
+      expr: up{cluster="tidb", job="tidb-nodes"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}} 主机宕机"
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}} 主机宕机"
+    - alert: "tidb服务异常"
+      expr: up{cluster="tidb",job !="tidb-nodes"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "tidb {{`{{`}} $labels.instance {{`}}`}} {{`{{`}} $labels.job {{`}}`}} 服务异常"
+        description: "tidb {{`{{`}} $labels.instance {{`}}`}} {{`{{`}} $labels.job {{`}}`}} 服务异常"
+    - alert: "TiDB_tikvclient_region_err_total"
+      expr: increase(tidb_tikvclient_region_err_total[10m]) > 6000
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB 访问 TiKV 时发生了 Region 错误."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB 访问 TiKV 时发生了 Region 错误."
+    - alert: "TiDB_domain_load_schema_total"
+      expr: increase(tidb_domain_load_schema_total{type="failed"}[10m]) > 10
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB 重载最新的 Schema 信息失败的总次数过多."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB 重载最新的 Schema 信息失败的总次数过多."
+    - alert: "TiDB_monitor_keep_alive"
+      expr: increase(tidb_domain_load_schema_total{type="failed"}[10m]) > 10
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB 重载最新的 Schema 信息失败的总次数过多."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB 重载最新的 Schema 信息失败的总次数过多."
+    - alert: "TiDB_query_duration"
+      expr: histogram_quantile(0.99, sum(rate(tidb_server_handle_query_duration_seconds_bucket[1m])) BY (le, instance)) > 1
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB延迟大于 1 秒的概率超过 99%."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB延迟大于 1 秒的概率超过 99%."
+    - alert: "TiDB_monitor_time_jump_back_error"
+      expr: increase(tidb_monitor_time_jump_back_total[10m]) > 0
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB服务器时间回退."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB服务器时间回退."
+    - alert: "PD_cluster_down_store_nums"
+      expr: (sum(pd_cluster_status{type="store_down_count"}) by (instance) > 0) and (sum(etcd_server_is_leader) by (instance) > 0)
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}} 没有收到 TiKV/TiFlash 心跳."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}} TiDB服务器时间回退."
+    - alert: "PD_etcd_write_disk_latency"
+      expr: histogram_quantile(0.99, sum(rate(etcd_disk_wal_fsync_duration_seconds_bucket[1m])) by (instance, job, le)) > 1
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}} fsync 操作延迟大于 1s."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}} fsync 操作延迟大于 1s."       
+    - alert: "PD_leader_change"
+      expr: count(changes(pd_tso_events{type="save"}[10m]) > 0) >= 4
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}}  PD leader 切换."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}}  PD leader 切换."  
+    - alert: "TiKV_space_used_more_than_80%"
+      expr: sum(pd_cluster_status{type="storage_size"}) / sum(pd_cluster_status{type="storage_capacity"}) * 100 > 80
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "tidb集群空间占用超过 80%。"
+        description: "tidb集群空间占用超过 80%。"          
+    - alert: "TiKV_raft_log_lag"
+      expr: histogram_quantile(0.99, sum(rate(tikv_raftstore_log_lag_bucket[1m])) by (le, instance)) > 5000
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}}Raft 没法正常同步, 查看实例是否掉线."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}}Raft 没法正常同步, 查看实例是否掉线."  
+    - alert: "TiKV_pending_task"
+      expr: sum(tikv_worker_pending_task_total) BY (instance,name) > 1000
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "实例 {{`{{`}} $labels.instance {{`}}`}}TiKV 等待的任务数量过多."
+        description: "实例 {{`{{`}} $labels.instance {{`}}`}}TiKV 等待的任务数量过多."  
+    # TICDC 告警规则
+    - alert: "cdc_checkpoint_high_delay"
+      expr: (time() - ticdc_processor_checkpoint_ts / 1000) > 600
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "TiCDC {{`{{`}}$labels.changefeed{{`}}`}}同步任务延迟超过 10 分钟"
+        description: "TiCDC {{`{{`}}$labels.changefeed{{`}}`}}同步任务延迟超过 10 分钟"
+    - alert: "ticdc_processor_resolved_ts"
+      expr: (time() - ticdc_processor_resolved_ts / 1000) > 300
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "TiCDC {{`{{`}}$labels.changefeed{{`}}`}}同步任务的 resolved ts 延迟超过 5 分钟"
+        description: "TiCDC {{`{{`}}$labels.changefeed{{`}}`}}同步任务的 resolved ts 延迟超过 5 分钟"
+    - alert: "ticdc_processor_exit_with_error_count"
+      expr: changes(ticdc_processor_exit_with_error_count[1m]) > 0
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "TiCDC {{`{{`}}$labels.changefeed{{`}}`}}同步任务报错退出"
+        description: "TiCDC {{`{{`}}$labels.changefeed{{`}}`}}同步任务报错退出"
+    # backup_log 告警
+    - alert: "LogBackupFailed"
+      expr: max(tikv_log_backup_task_status) by (task) > 0
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "日志备份任务状态异常，br log status 查看，任务: {{`{{`}}$labels.task{{`}}`}}"
+        description: "日志备份任务状态异常，br log status 查看，任务: {{`{{`}}$labels.task{{`}}`}}"

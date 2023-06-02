@@ -1,0 +1,36 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels: 
+    release: kube-prometheus-stack
+    role: alert-rules
+  name: rabbit-cluster-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: rabbit告警
+    rules:
+    - alert: "主机状态"
+      expr: up{cluster="rabbitmq", job="rabbitmq-nodes"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{`{{`}} $labels.instance {{`}}`}}主机宕机"
+        description: "{{`{{`}} $labels.instance {{`}}`}}主机宕机"
+    - alert: "rabbitmq_exporter服务未运行"
+      expr: up{cluster="rabbitmq",job="rabbitmq"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "{{`{{`}} $labels.instance {{`}}`}}rabbitmq_exporter服务未运行"
+        description: "{{`{{`}} $labels.instance {{`}}`}}rabbitmq_exporter服务未运行"
+    - alert: "rabbitmq服务未运行"
+      expr: rabbitmq_up{job="rabbitmq"} == 0
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: "{{`{{`}} $labels.instance {{`}}`}}rabbitmq服务未运行"
+        description: "{{`{{`}} $labels.instance {{`}}`}}rabbitmq服务未运行"
